@@ -4,7 +4,7 @@
     "name": "オセロスクリプト",
     "description": "使用するには実験からベータAPIをオンにしてください",
     "uuid": "4ef085e8-48a4-623c-efe1-2939810831d8",
-    "version": [1, 0, 0],
+    "version": [1, 0, 1],
     "min_engine_version": [1, 20, 70]
   },
   "modules": [
@@ -13,13 +13,13 @@
       "language": "javascript",
       "uuid": "bf09b620-da47-4e2b-b474-485ec1f8f551",
       "entry": "scripts/main.js",
-      "version": [1, 0, 0]
+      "version": [1, 0, 1]
     }
   ],
   "dependencies": [
     {
       "module_name": "@minecraft/server",
-      "version": "1.10.0-beta"
+      "version": "1.11.0-beta"
     }
   ],
   "metadata": {
