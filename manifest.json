@@ -1,10 +1,10 @@
 {
   "format_version": 2,
   "header": {
-    "name": "オセロスクリプト",
+    "name": "オセロスクリプト 1, 1, 0",
     "description": "使用するには実験からベータAPIをオンにしてください",
     "uuid": "4ef085e8-48a4-623c-efe1-2939810831d8",
-    "version": [1, 0, 3],
+    "version": [1, 1, 0],
     "min_engine_version": [1, 21, 1]
   },
   "modules": [
@@ -13,13 +13,13 @@
       "language": "javascript",
       "uuid": "bf09b620-da47-4e2b-b474-485ec1f8f551",
       "entry": "scripts/main.js",
-      "version": [1, 0, 3]
+      "version": [1, 1, 0]
     }
   ],
   "dependencies": [
     {
       "module_name": "@minecraft/server",
-      "version": "1.14.0-beta"
+      "version": "2.0.0-alpha"
     }
   ],
   "metadata": {

@@ -1,6 +1,15 @@
 import { world, system } from "@minecraft/server";
 
 let isplace = true;
+let isstart = false;
+let originX = 0;
+let originY = 0;
+let originZ = 0;
+
+// Track previous board location
+let previousOriginX = null;
+let previousOriginY = null;
+let previousOriginZ = null;
 
 let board = [
   ["", "", "", "", "", "", "", ""],
@@ -13,14 +22,30 @@ let board = [
   ["", "", "", "", "", "", "", ""],
 ];
 
+system.runTimeout(() => {
+  if(world.getDynamicProperty("OthelloData") !== undefined) {
+    let OthelloData = JSON.parse(world.getDynamicProperty("OthelloData"));
+    isplace = OthelloData.isplace;
+    isstart = OthelloData.isstart;
+    originX = OthelloData.originX;
+    originY = OthelloData.originY;
+    originZ = OthelloData.originZ;
+    board = OthelloData.board;
+    previousOriginX = OthelloData.previousOriginX;
+    previousOriginY = OthelloData.previousOriginY;
+    previousOriginZ = OthelloData.previousOriginZ;
+  }
+})
+
 const boardrender = () => {
+
   const overworld = world.getDimension("overworld");
 
   function runNextIteration(i, j) {
     system.runTimeout(() => {
-      const x = i;
-      const y = -60;
-      const z = j;
+      const x = originX + i;
+      const y = originY;
+      const z = originZ + j;
       if (board[i][j] === "")
         overworld.runCommand(`setblock ${x} ${y} ${z} green_wool`);
       if (board[i][j] === "W")
@@ -28,19 +53,14 @@ const boardrender = () => {
       if (board[i][j] === "B")
         overworld.runCommand(`setblock ${x} ${y} ${z} black_wool`);
 
-      // Increment j and check if it exceeds the length of board[i]
       j++;
       if (j < board[i].length) {
-        // If j is within bounds, call runNextIteration with updated i and j
         runNextIteration(i, j);
       } else {
-        // If j exceeds the length, reset j to 0 and increment i
         j = 0;
         i++;
 
-        // Check if i exceeds the length of board
         if (i < board.length) {
-          // If i is within bounds, call runNextIteration with updated i and j after 1 second
           system.runTimeout(() => {
             runNextIteration(i, j);
           }, 0);
@@ -49,10 +69,10 @@ const boardrender = () => {
     }, 0);
   }
 
-  // Start the loop with initial values of i and j as 0
   runNextIteration(0, 0);
 };
 
+// FlipPieces function remains the same
 function flipPieces(x, y, currentPlayer) {
   const directions = [
     [-1, -1],
@@ -103,6 +123,7 @@ function flipPieces(x, y, currentPlayer) {
   boardrender();
 }
 
+// Other helper functions remain the same
 function placeBestBlackPiece() {
   let bestScore = -Infinity;
   let bestMove = null;
@@ -125,6 +146,18 @@ function placeBestBlackPiece() {
   }
 
   isplace = true;
+
+  world.setDynamicProperty("OthelloData", JSON.stringify({
+    isplace,
+    isstart,
+    originX,
+    originY,
+    originZ,
+    board,
+    previousOriginX,
+    previousOriginY,
+    previousOriginZ
+  }))
 }
 
 function evaluateMove(x, y, player) {
@@ -176,8 +209,66 @@ function evaluateMove(x, y, player) {
   return score;
 }
 
-world.afterEvents.chatSend.subscribe((e) => {
-  if (e.message == "./setup") {
+// Function to clear the previous board
+const clearPreviousBoard = () => {
+  if (previousOriginX !== null) {
+    const overworld = world.getDimension("overworld");
+    
+    function clearNextBlock(i, j) {
+      system.runTimeout(() => {
+        const x = previousOriginX + i;
+        const y = previousOriginY;
+        const z = previousOriginZ + j;
+        overworld.runCommand(`setblock ${x} ${y} ${z} air`);
+
+        j++;
+        if (j < 8) {
+          clearNextBlock(i, j);
+        } else {
+          j = 0;
+          i++;
+          if (i < 8) {
+            system.runTimeout(() => {
+              clearNextBlock(i, j);
+            }, 0);
+          }
+        }
+      }, 0);
+    }
+
+    clearNextBlock(0, 0);
+  }
+};
+
+// Modified setup command to use the player's position
+world.beforeEvents.chatSend.subscribe((e) => {
+  if (e.message === "./setup") {
+    e.cancel = true;
+    isstart = true;
+    isplace = true;
+    e.sender.sendMessage("作業台を置いてゲームを開始します。");
+  }
+});
+
+world.afterEvents.playerPlaceBlock.subscribe((e) => {
+  if(e.block.typeId === "minecraft:crafting_table" && isstart) {
+    isstart = false;
+    const position = e.block.location;
+    
+    // Clear the previous board first
+    clearPreviousBoard();
+    
+    // Store the origin coordinates
+    previousOriginX = originX;
+    previousOriginY = originY;
+    previousOriginZ = originZ;
+    
+    // Set new origin coordinates
+    originX = Math.floor(position.x);
+    originY = Math.floor(position.y); // One block below player
+    originZ = Math.floor(position.z);
+    
+    // Reset the board
     board = [
       ["", "", "", "", "", "", "", ""],
       ["", "", "", "", "", "", "", ""],
@@ -188,22 +279,31 @@ world.afterEvents.chatSend.subscribe((e) => {
       ["", "", "", "", "", "", "", ""],
       ["", "", "", "", "", "", "", ""],
     ];
-    boardrender();
-  }
-});
 
-world.afterEvents.playerInteractWithBlock.subscribe((e) => {
+    // Add a small delay before rendering the new board
+    system.runTimeout(() => {
+      boardrender();
+    }, 10);
+  }
+})
+
+// Modified interaction handler to use relative coordinates
+world.afterEvents.playerBreakBlock.subscribe((e) => {
   if (!isplace) return;
 
   const position = e.block.center();
-  const x = Math.floor(position.x);
-  const z = Math.floor(position.z);
-  if (board[x][z] == "") {
-    isplace = false;
-    board[x][z] = "W";
-    flipPieces(z, x, "W");
-    system.runTimeout(() => {
-      placeBestBlackPiece();
-    }, 20);
+  const relativeX = Math.floor(position.x) - originX;
+  const relativeZ = Math.floor(position.z) - originZ;
+  
+  // Check if the click is within the board boundaries
+  if (relativeX >= 0 && relativeX < 8 && relativeZ >= 0 && relativeZ < 8) {
+    if (board[relativeX][relativeZ] === "") {
+      isplace = false;
+      board[relativeX][relativeZ] = "W";
+      flipPieces(relativeZ, relativeX, "W");
+      system.runTimeout(() => {
+        placeBestBlackPiece();
+      }, 20);
+    }
   }
 });
